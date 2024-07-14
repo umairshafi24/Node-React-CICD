@@ -1,6 +1,6 @@
 pipeline {
     agent {
-        any {
+        docker {
             image 'node:6-alpine'
             args '-p 3000:3000'
         }
@@ -9,6 +9,11 @@ pipeline {
         CI = 'true'
     }
     stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
         stage('Build') {
             steps {
                 sh 'npm install'
@@ -19,12 +24,32 @@ pipeline {
                 sh './jenkins/scripts/test.sh'
             }
         }
-        stage('Deliver') {
+        stage('Build Application') {
+            steps {
+                sh 'npm run build'
+            }
+        }
+        stage('Start Server') {
+            steps {
+                sh 'nohup npm start &'
+            }
+        }
+        stage('Deploy Application') {
             steps {
                 sh './jenkins/scripts/deliver.sh'
-                input message: 'Finished using the web site? (Click "Proceed" to continue)'
-                sh './jenkins/scripts/kill.sh'
             }
+        }
+    }
+    post {
+        always {
+            echo 'Stopping the server...'
+            sh './jenkins/scripts/kill.sh'
+        }
+        success {
+            echo 'Pipeline completed successfully. Application deployed.'
+        }
+        failure {
+            echo 'Pipeline failed. Notify the team...'
         }
     }
 }
